@@ -29,7 +29,7 @@ def rollout(env, agent, n_rollouts):
     Collects the actions and resulting observations given an agent in an environment.
     Repeats the process n_rollouts times.
     """
-    # TODO: parallelize?
+    # TODO: parallelize? add tqdm?
     rollouts = []
     for _ in range(n_rollouts):
         actions = []
@@ -47,7 +47,7 @@ def rollout(env, agent, n_rollouts):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=None)
+    parser = argparse.ArgumentParser(description='Rollout of an agent in an environment')
     parser.add_argument('--env', nargs='?', default='CarRacing-v0', help='Select the environment to run')
     parser.add_argument('--agent', nargs='?', default='RandomAgent', help='Select the agent to run')
     parser.add_argument('--n_rollouts', nargs='?', default='10000', type=int, help='Specify how many rollouts to perform')
@@ -64,15 +64,15 @@ def main():
     else:
         raise NotImplementedError('Agent not supported: ' + args.agent)
 
-    if not os.path.exists(os.path.join(DATA_DIR, "rollouts")):
-        os.makedirs(os.path.join(DATA_DIR, "rollouts"))
+    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts')):
+        os.makedirs(os.path.join(DATA_DIR, 'rollouts'))
 
     # TODO: have consistent args type?
     np.save(os.path.join(DATA_DIR,
-                         "rollouts",
+                         'rollouts',
                          args.env + '_' + args.agent + '_' + str(args.n_rollouts) + '_' +
                          datetime.datetime.today().isoformat()),
             rollout(env, agent, args.n_rollouts))
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
