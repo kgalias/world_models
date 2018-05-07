@@ -2,12 +2,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+import datetime
 import argparse
+# import logging
 
+import numpy as np
 import gym
+from src import DATA_DIR
+
+# logger = logging.getLogger(__name__)
 
 
-# TODO: Move to agents file?
+# TODO: move to agents file?
 class RandomAgent(object):
 
     def __init__(self, action_space):
@@ -43,18 +50,29 @@ def main():
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env', nargs='?', default='CarRacing-v0', help='Select the environment to run')
     parser.add_argument('--agent', nargs='?', default='RandomAgent', help='Select the agent to run')
-    parser.add_argument('--n_rollouts', nargs='?', default='10000', type=int, help='Select the agent to run')
+    parser.add_argument('--n_rollouts', nargs='?', default='10000', type=int, help='Specify how many rollouts to perform')
     args = parser.parse_args()
 
-    env = gym.make(args.env)
+    # TODO: reorganize?
+    if args.env == 'CarRacing-v0':
+        env = gym.make(args.env)
+    else:
+        raise NotImplementedError('Environment not supported: ' + args.env)
 
     if args.agent == 'RandomAgent':
         agent = RandomAgent(env.action_space)
     else:
         raise NotImplementedError('Agent not supported: ' + args.agent)
 
-    # TODO: Save to file?
-    print(rollout(env, agent, args.n_rollouts))
+    if not os.path.exists(os.path.join(DATA_DIR, "rollouts")):
+        os.makedirs(os.path.join(DATA_DIR, "rollouts"))
+
+    # TODO: have consistent args type?
+    np.save(os.path.join(DATA_DIR,
+                         "rollouts",
+                         args.env + '_' + args.agent + '_' + str(args.n_rollouts) + '_' +
+                         datetime.datetime.today().isoformat()),
+            rollout(env, agent, args.n_rollouts))
 
 if __name__ == "__main__":
     main()
