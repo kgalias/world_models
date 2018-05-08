@@ -1,6 +1,4 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import os
 import datetime
@@ -31,7 +29,7 @@ def rollout(env, agent, n_rollouts):
     """
     # TODO: parallelize? add tqdm?
     rollouts = []
-    for _ in range(n_rollouts):
+    for i in range(n_rollouts):
         actions = []
         observations = []
         obs = env.reset()
@@ -43,14 +41,18 @@ def rollout(env, agent, n_rollouts):
             actions.append(action)
             observations.append(obs)
         rollouts.append({'actions': actions, 'observations': observations})
+        if i % 500 == 0:
+            np.save(os.path.join(DATA_DIR, 'rollouts',
+                                 'temp_' + datetime.datetime.today().isoformat()),
+                    rollouts)
     return rollouts
 
 
 def main():
     parser = argparse.ArgumentParser(description='Rollout of an agent in an environment')
-    parser.add_argument('--env', nargs='?', default='CarRacing-v0', help='Select the environment to run')
-    parser.add_argument('--agent', nargs='?', default='RandomAgent', help='Select the agent to run')
-    parser.add_argument('--n_rollouts', nargs='?', default='10000', type=int, help='Specify how many rollouts to perform')
+    parser.add_argument('--env', nargs='?', default='CarRacing-v0', help='Environment to use')
+    parser.add_argument('--agent', nargs='?', default='RandomAgent', help='Agent to run')
+    parser.add_argument('--n_rollouts', nargs='?', default='10000', type=int, help='How many rollouts to perform')
     args = parser.parse_args()
 
     # TODO: reorganize?
