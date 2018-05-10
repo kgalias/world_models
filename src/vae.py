@@ -59,4 +59,3 @@ def vae_loss(recon_x, x, mu, logvar):
     l2 = F.mse_loss(recon_x, x)  # reconstruction loss
     kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())  # KL loss
     return l2 + kl
-
