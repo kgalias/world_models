@@ -1,17 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
 import os
-import datetime
 import argparse
 # import logging
 
-import numpy as np
 import torch
-from torch import nn, optim
-from torch.nn import functional as F
+from torch import optim
 
 from torch.utils.data import DataLoader
-from torchvision import transforms, utils
+from torchvision import transforms
 
 from src.obs_data import ObservationDataset
 from src.vae import VAE, vae_loss
@@ -37,24 +34,32 @@ def main():
     device = torch.device('cuda' if use_cuda else 'cpu')
 
     # read in data, transform to preprocess data
-    composed = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])
+    # composed = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])
+    shape = (int(args.rollouts_path.split('.')[-2][-1]) * 1000, 64, 64, 3)  # TODO: hack
     train = ObservationDataset(os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
-                               str(int(args.rollouts_path.split('.')[-2][-1]) * 1000),  # TODO: hack
-                               transform=composed)
+                               shape,
+                               transform=transforms.ToTensor())
     train_loader = DataLoader(train, batch_size=args.batchsize, shuffle=True)
 
     vae = VAE().to(device)
     optimizer = optim.Adam(vae.parameters())
 
-    loss = vae_loss()
+    def train(epoch):
+        vae.train()
+        for batch_idx, batch in enumerate(train_loader):
+            batch = batch.to(device)
+            optimizer.zero_grad()
+            output = vae(batch)
+            loss = vae_loss(output, batch)
+            loss.backward()
+            optimizer.step()
+            if batch_idx % args.log_interval == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                      epoch, batch_idx * len(batch), len(train_loader.dataset),
+                      100. * batch_idx / len(train_loader), loss.item()))
 
-    for i in range(args.n_epochs):
-        pass
-
-    # As the environment may give us observations as high dimensional pixel images,
-    # we first resize each image to 64x64 pixels before and use this resized image
-    # as the V Model's observation. Each pixel is stored as three floating point values
-    # between 0 and 1 to represent each of the RGB channels.
+    for i in range(1, args.n_epochs + 1):
+        train(i)
 
 if __name__ == '__main__':
     main()
