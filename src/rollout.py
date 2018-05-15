@@ -5,10 +5,9 @@ import datetime
 import argparse
 # import logging
 
-from PIL import Image
 import tqdm
 import numpy as np
-import torch
+from PIL import Image
 from torchvision.transforms import Resize
 import gym
 from src.utils import suppress_stdout
@@ -33,20 +32,20 @@ def rollout(env, agent, n_rollouts, log_interval, fname, save_action=False):
     Collects the actions and resulting observations given an agent in an environment.
     Repeats the process n_rollouts times.
     """
-    # TODO: numpy array instead of list?
     rollouts = {'actions': [], 'observations': []}
 
     # TODO: parallelize?
     for i in tqdm.tqdm(range(n_rollouts)):
         with suppress_stdout():  # Suppress track generation message for tqdm to work.
             obs = env.reset()
+        env.env.viewer.window.dispatch_events()  # CarRacing-v0 is bugged and corrupts obs without this.
         done = False
         reward = 0
         while not done:
             action = agent.act(obs, reward, done)
             obs, reward, done, _ = env.step(action)
             rollouts['actions'].append(action)
-            rollouts['observations'].append(np.array(Resize((64, 64))(Image.fromarray(obs)), dtype=np.uint8))  # resize to save space
+            rollouts['observations'].append(np.array(Resize((64, 64))(Image.fromarray(obs)), dtype=np.uint8))  # Resize to save space.
         if (i + 1) % log_interval == 0:
             save(rollouts, fname, i + 1, 'observations')
             if save_action:
@@ -58,10 +57,10 @@ def rollout(env, agent, n_rollouts, log_interval, fname, save_action=False):
 
 
 def save(rollouts, fname, rollout_num, data_name):
-    torch.save(np.array(rollouts[data_name]),
-               os.path.join(DATA_DIR, 'rollouts',
-                            fname + '_' + datetime.datetime.today().isoformat()) + '_' + str(
-                            rollout_num) + '.' + data_name[:3])
+    np.save(os.path.join(DATA_DIR, 'rollouts',
+                         fname + '_' + datetime.datetime.today().isoformat()) + '_' + str(
+                         rollout_num) + '_' + data_name[:3],
+            np.array(rollouts[data_name]))
 
 
 def main():
