@@ -2,7 +2,20 @@ from __future__ import absolute_import, division, print_function
 
 import os
 import sys
+import logging
 from contextlib import contextmanager
+
+
+def setup_logger(name):
+    formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    return logger
 
 
 @contextmanager

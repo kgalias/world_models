@@ -43,7 +43,7 @@ class VAE(nn.Module):
             return mu
 
     def decode(self, z):
-        fc2 = F.relu(self.fc2(z)).view(-1, 1024, 1, 1)  # TODO: do better?
+        fc2 = F.relu(self.fc2(z))[:, :, None, None]  # Add two dummy dimensions for conv.
         conv5 = F.relu(self.conv5(fc2))
         conv6 = F.relu(self.conv6(conv5))
         conv7 = F.relu(self.conv7(conv6))
@@ -56,6 +56,6 @@ class VAE(nn.Module):
 
 
 def vae_loss(recon_x, x, mu, logvar):
-    l2 = F.mse_loss(recon_x, x)  # reconstruction loss
+    l2 = F.mse_loss(recon_x, x, size_average=False)  # reconstruction loss
     kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())  # KL loss
-    return l2 + kl
+    return l2, kl

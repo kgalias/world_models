@@ -5,8 +5,6 @@ import datetime
 import argparse
 # import logging
 
-import tqdm
-
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
@@ -40,32 +38,35 @@ def main():
     device = torch.device('cuda:' + args.gpu_id if args.gpu_id else 'cpu')
 
     # read in and preprocess data
-    train = ObservationDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
-                               size=int(args.rollouts_fname.split('.')[-2].split('_')[-2]) * 1000,  # TODO: hack
-                               transform=ToTensor())
-    train_loader = DataLoader(train, batch_size=args.batchsize, shuffle=True)
+    dataset = ObservationDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
+                                 size=int(args.rollouts_fname.split('.')[-2].split('_')[-2]) * 1000,  # TODO: hack
+                                 transform=ToTensor())
+    train_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
+    test_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
 
     # set up model and optimizer
     vae = VAE().to(device)
     optimizer = optim.Adam(vae.parameters())
 
+    # training procedure
     def train(epoch):
         vae.train()
         train_loss = 0
-        # for batch_idx, batch in enumerate(tqdm.tqdm(train_loader)):
         for batch_idx, batch in enumerate(train_loader):
             batch = batch.to(device)
             optimizer.zero_grad()
-            recon, mu, logvar = vae(batch)
-            loss = vae_loss(recon, batch, mu, logvar)
+            recon_batch, mu, logvar = vae(batch)
+            rec_loss, kl_loss = vae_loss(recon_batch, batch, mu, logvar)
+            loss = rec_loss + kl_loss
             loss.backward()
             train_loss += loss.item()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                print('Epoch: {} [{}/{} ({:.0f}%)]\tRec Loss: {:.6f}\tKL Loss: {:.6f}'.format(
                       epoch, batch_idx * len(batch), len(train_loader.dataset),
                       100. * batch_idx / len(train_loader),
-                      loss.item() / len(batch)))
+                      rec_loss.item() / len(batch),
+                      kl_loss.item() / len(batch)))
 
         print('====> Epoch: {} Average loss: {:.4f}'.format(
               epoch, train_loss / len(train_loader.dataset)))
@@ -77,9 +78,11 @@ def main():
     if not os.path.exists(os.path.join(DATA_DIR, 'vae')):
         os.makedirs(os.path.join(DATA_DIR, 'vae'))
 
-    torch.save(vae.state_dict(), os.path.join(DATA_DIR, 'vae', datetime.datetime.today().isoformat()))
-    # the_model = TheModelClass(*args, **kwargs)
-    # the_model.load_state_dict(torch.load(PATH))
+    torch.save(vae.state_dict(), os.path.join(DATA_DIR, 'vae',
+                                              datetime.datetime.today().isoformat() + str(args.n_epochs)))
+    # To load model, do:
+    # vae = VAE()
+    # vae.load_state_dict(torch.load(PATH))
 
 if __name__ == '__main__':
     main()
