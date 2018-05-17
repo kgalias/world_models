@@ -24,25 +24,24 @@ def main():
                         help='Number of epochs to train (default=10)')
     parser.add_argument('--latent_dim', type=int, default=32,
                         help='Dimension of latent space (default=32)')
-    # parser.add_argument('--cuda', action='store_true', default=False,
-    #                     help='enables CUDA training')
-    parser.add_argument('--gpu_id', nargs='?', default=None,
-                        help='Which GPU to use (default: None)')
+    parser.add_argument('--cuda', action='store_true', default=False,
+                        help='enables CUDA training')
+    # parser.add_argument('--gpu_id', nargs='?', default=None,
+    #                     help='Which GPU to use (default: None)')
     parser.add_argument('--rollouts_fname',
                         help='Rollouts file name')
     parser.add_argument('--log_interval', nargs='?', default='2', type=int,
                         help='After how many epochs to log')
     args = parser.parse_args()
 
-    # use_cuda = args.cuda and torch.cuda.is_available()
-    device = torch.device('cuda:' + args.gpu_id if args.gpu_id else 'cpu')
+    use_cuda = args.cuda and torch.cuda.is_available()
+    device = torch.device('cuda' if use_cuda else 'cpu')
 
     # read in and preprocess data
     dataset = ObservationDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
                                  size=int(args.rollouts_fname.split('.')[-2].split('_')[-2]) * 1000,  # TODO: hack
                                  transform=ToTensor())
-    train_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
-    test_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
+    data_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
 
     # set up model and optimizer
     vae = VAE().to(device)
@@ -52,7 +51,7 @@ def main():
     def train(epoch):
         vae.train()
         train_loss = 0
-        for batch_idx, batch in enumerate(train_loader):
+        for batch_idx, batch in enumerate(data_loader):
             batch = batch.to(device)
             optimizer.zero_grad()
             recon_batch, mu, logvar = vae(batch)
@@ -63,14 +62,15 @@ def main():
             optimizer.step()
             if batch_idx % args.log_interval == 0:
                 print('Epoch: {} [{}/{} ({:.0f}%)]\tRec Loss: {:.6f}\tKL Loss: {:.6f}'.format(
-                      epoch, batch_idx * len(batch), len(train_loader.dataset),
-                      100. * batch_idx / len(train_loader),
+                      epoch, batch_idx * len(batch), len(data_loader.dataset),
+                      100. * batch_idx / len(data_loader),
                       rec_loss.item() / len(batch),
                       kl_loss.item() / len(batch)))
 
         print('====> Epoch: {} Average loss: {:.4f}'.format(
-              epoch, train_loss / len(train_loader.dataset)))
+              epoch, train_loss / len(data_loader.dataset)))
 
+    # train
     for i in range(1, args.n_epochs + 1):
         train(i)
 
