@@ -3,14 +3,13 @@ from __future__ import absolute_import, division, print_function
 import os
 import datetime
 import argparse
-# import logging
 
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 
-from src.obs_data import ObservationDataset
+from src.data import RolloutDataset
 from src.vae import VAE, vae_loss
 from src import DATA_DIR
 
@@ -34,16 +33,16 @@ def main():
                         help='After how many epochs to log')
     args = parser.parse_args()
 
-    use_cuda = args.cuda and torch.cuda.is_available()
-    device = torch.device('cuda' if use_cuda else 'cpu')
-
     # read in and preprocess data
-    dataset = ObservationDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
-                                 size=int(args.rollouts_fname.split('.')[-2].split('_')[-2]) * 1000,  # TODO: hack
-                                 transform=ToTensor())
+    dataset = RolloutDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
+                             size=int(args.rollouts_fname.split('.')[-2].split('_')[-2]) * 1000,  # TODO: hack
+                             transform=ToTensor())
     data_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
 
     # set up model and optimizer
+    use_cuda = args.cuda and torch.cuda.is_available()
+    device = torch.device('cuda' if use_cuda else 'cpu')
+
     vae = VAE().to(device)
     optimizer = optim.Adam(vae.parameters())
 

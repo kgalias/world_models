@@ -5,9 +5,9 @@ import numpy as np
 from torch.utils.data import Dataset
 
 
-class ObservationDataset(Dataset):
+class RolloutDataset(Dataset):
 
-    def __init__(self, path_to_file, size, transform=None):
+    def __init__(self, path_to_file, size, image=True, transform=None):
         """
         Args:
             path_to_file (string): Path to file.
@@ -16,13 +16,17 @@ class ObservationDataset(Dataset):
         """
         self.size = size
         self.data = np.load(path_to_file, mmap_mode='r')
+        self.image = image
         self.transform = transform
 
     def __len__(self):
         return self.size
 
     def __getitem__(self, idx):
-        sample = Image.fromarray(self.data[idx])
+        sample = self.data[idx]
+
+        if self.image:
+            sample = Image.fromarray(sample)
 
         if self.transform:
             sample = self.transform(sample)

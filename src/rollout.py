@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 import os
 import datetime
 import argparse
-# import logging
 
 import tqdm
 import numpy as np
@@ -12,8 +11,6 @@ from torchvision.transforms import Resize
 import gym
 from src.utils import suppress_stdout
 from src import DATA_DIR
-
-# logger = logging.getLogger(__name__)
 
 
 # TODO: move to agents file?
@@ -92,7 +89,7 @@ def main():
         os.makedirs(os.path.join(DATA_DIR, 'rollouts'))
 
     fname = args.env + '_' + args.agent
-    rollout(env, agent, args.n_rollouts, args.log_interval, fname)
+    rollout(env, agent, args.n_rollouts, args.log_interval, fname, args.save_action)
 
 if __name__ == '__main__':
     main()

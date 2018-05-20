@@ -22,13 +22,13 @@ class MDN(nn.Module):
         mu = mu.view(-1, self.n_gaussians, self.output_dim)
         sigma = torch.exp(self.sigma(x))
         sigma = sigma.view(-1, self.n_gaussians, self.output_dim)
-        return pi, sigma, mu
+        return pi, mu, sigma
 
     def sample(self, pi, mu, sigma):
         cat = Categorical(pi)
-        pi_idxs = cat.sample().numpy()
+        pi_idxs = cat.sample().cpu().numpy()
         batchsize = pi.size(0)
-        sample = torch.Tensor((batchsize, self.output_dim))
+        sample = torch.empty(batchsize, self.output_dim)
         for i, idx in enumerate(pi_idxs):
             sample[i] = torch.normal(mu[i][idx], sigma[i][idx])
         return sample
@@ -36,13 +36,30 @@ class MDN(nn.Module):
 
 class MDNRNN(nn.Module):
     def __init__(self, action_dim, hidden_dim=256, latent_dim=32, n_gaussians=5):
-        super(MDNRNN, self).__init__(a)
-        self.rnn = nn.LSTM(input_size=action_dim+latent_dim, hidden_dim=hidden_dim)
+        super(MDNRNN, self).__init__()
+        # input, (h_0, c_0)
+        # input of shape (seq_len, batch, input_size)
+        # h_0 of shape (num_layers * num_directions, batch, hidden_size)
+        # c_0 of shape (num_layers * num_directions, batch, hidden_size)
+        self.hidden_dim = hidden_dim
+        self.rnn = nn.LSTM(input_size=action_dim+latent_dim, hidden_size=hidden_dim)
         self.mdn = MDN(input_dim=hidden_dim, output_dim=latent_dim, n_gaussians=n_gaussians)
 
-    def forward(self, action, state, hidden_state):
+    def forward(self, action, state, hidden_state=None):
+        # batch_size =
+        # if hidden_state is None:
+        #     # use new so that we do not need to know the tensor type explicitly.
+        #     hidden_state = (Variable(inpt.data.new(1, batch_size, self.hidden_size)),
+        #                     Variable(inpt.data.new(1, batch_size, self.hidden_size)))
+
         rnn_input = torch.cat((action, state), dim=-1)
         output, hidden_state = self.rnn(rnn_input, hidden_state)
-        # reshape output ?
-        pi, sigma, mu = self.mdn(output)
-        return self.mdn.sample(pi, sigma, mu), hidden_state
+        output = output.view(-1, self.hidden_dim)
+        pi, mu, sigma = self.mdn(output)
+        return pi, mu, sigma, hidden_state
+
+
+def nll_gmm_loss(x, pi, mu, sigma):
+    x = x.expand(mu.size())
+    log_pi = pi.log()
+    
