@@ -12,6 +12,7 @@ class RolloutDataset(Dataset):
         Args:
             path_to_file (string): Path to file.
             size (int): Number of observations in file.
+            image (bool): Whether the date is comprised of images.
             transform (callable, optional): Optional transform to be applied on a sample.
         """
         self.size = size

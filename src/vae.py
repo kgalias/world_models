@@ -30,17 +30,15 @@ class VAE(nn.Module):
         conv1 = F.relu(self.conv1(x))
         conv2 = F.relu(self.conv2(conv1))
         conv3 = F.relu(self.conv3(conv2))
-        conv4 = F.relu(self.conv4(conv3)).view(-1, 2*2*256)
+        conv4 = F.relu(self.conv4(conv3)).view(-1, 2*2*256)  # Reshape for dense.
 
         return self.fc11(conv4), self.fc12(conv4)
 
+    # TODO: make static?
     def reparameterize(self, mu, logvar):
-        if self.training:  # TODO: figure out if need sample in inference
-            std = torch.exp(0.5*logvar)
-            eps = torch.randn_like(std)
-            return eps.mul(std).add_(mu)
-        else:
-            return mu
+        std = torch.exp(0.5*logvar)
+        eps = torch.randn_like(std)
+        return eps.mul(std).add_(mu)
 
     def decode(self, z):
         fc2 = F.relu(self.fc2(z))[:, :, None, None]  # Add two dummy dimensions for conv.

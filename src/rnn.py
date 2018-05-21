@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import math
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -27,15 +28,15 @@ class MDN(nn.Module):
     def sample(self, pi, mu, sigma):
         cat = Categorical(pi)
         pi_idxs = cat.sample().cpu().numpy()
-        batchsize = pi.size(0)
-        sample = torch.empty(batchsize, self.output_dim)
+        batch_size = pi.size(0)
+        sample = torch.empty(batch_size, self.output_dim)
         for i, idx in enumerate(pi_idxs):
             sample[i] = torch.normal(mu[i][idx], sigma[i][idx])
         return sample
 
 
 class MDNRNN(nn.Module):
-    def __init__(self, action_dim, hidden_dim=256, latent_dim=32, n_gaussians=5):
+    def __init__(self, action_dim=3, hidden_dim=256, latent_dim=32, n_gaussians=5):
         super(MDNRNN, self).__init__()
         # input, (h_0, c_0)
         # input of shape (seq_len, batch, input_size)
@@ -46,20 +47,46 @@ class MDNRNN(nn.Module):
         self.mdn = MDN(input_dim=hidden_dim, output_dim=latent_dim, n_gaussians=n_gaussians)
 
     def forward(self, action, state, hidden_state=None):
-        # batch_size =
-        # if hidden_state is None:
-        #     # use new so that we do not need to know the tensor type explicitly.
-        #     hidden_state = (Variable(inpt.data.new(1, batch_size, self.hidden_size)),
-        #                     Variable(inpt.data.new(1, batch_size, self.hidden_size)))
-
-        rnn_input = torch.cat((action, state), dim=-1)
+        # TODO: initialize hidden_state if None?
+        rnn_input = torch.cat((action, state), dim=-1)  # Concatenate action and state.
         output, hidden_state = self.rnn(rnn_input, hidden_state)
         output = output.view(-1, self.hidden_dim)
         pi, mu, sigma = self.mdn(output)
         return pi, mu, sigma, hidden_state
 
 
-def nll_gmm_loss(x, pi, mu, sigma):
-    x = x.expand(mu.size())
+def nll_gmm_loss(x, pi, mu, sigma, size_average=True):
+    # TODO: maybe broadcasting works?
+    x = x.unsqueeze(1).expand_as(mu)
     log_pi = pi.log()
-    
+    log_pdf = -1 / 2 * (sigma.prod(dim=-1).log() + (x - mu).pow(2).mul(sigma.reciprocal()).sum(dim=-1))
+    log_pdf += -1 / 2 * torch.ones_like(log_pdf) * math.log(2 * math.pi)
+    if size_average:
+        return logsumexp(log_pi + log_pdf, dim=-1).mean()
+    else:
+        return logsumexp(log_pi + log_pdf, dim=-1).sum()
+
+
+# from https://github.com/pytorch/pytorch/issues/2591#issuecomment-364474328
+def logsumexp(inputs, dim=None, keepdim=False):
+    """Numerically stable logsumexp.
+
+    Args:
+        inputs: A Variable with any shape.
+        dim: An integer.
+        keepdim: A boolean.
+
+    Returns:
+        Equivalent of log(sum(exp(inputs), dim=dim, keepdim=keepdim)).
+    """
+    # For a 1-D array x (any array along a single dimension),
+    # log sum exp(x) = s + log sum exp(x - s)
+    # with s = max(x) being a common choice.
+    if dim is None:
+        inputs = inputs.view(-1)
+        dim = 0
+    s, _ = torch.max(inputs, dim=dim, keepdim=True)
+    outputs = s + (inputs - s).exp().sum(dim=dim, keepdim=True).log()
+    if not keepdim:
+        outputs = outputs.squeeze(dim)
+    return outputs

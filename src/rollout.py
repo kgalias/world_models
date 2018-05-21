@@ -61,6 +61,7 @@ def save(rollouts, fname, rollout_num, data_name):
 
 
 def main():
+    # TODO: have consistent (with other files) argument descriptions.
     parser = argparse.ArgumentParser(description='Rollout of an agent in an environment')
     parser.add_argument('--env', nargs='?', default='CarRacing-v0',
                         help='Environment to use')
@@ -74,7 +75,6 @@ def main():
                         help='After how many rollouts to log')
     args = parser.parse_args()
 
-    # TODO: reorganize?
     if args.env == 'CarRacing-v0':
         env = gym.make(args.env)
     else:

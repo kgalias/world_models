@@ -15,7 +15,7 @@ from src import DATA_DIR
 
 
 def main():
-    # TODO: have consistent (with other file) argument descriptions
+    # TODO: have consistent (with other files) argument descriptions.
     parser = argparse.ArgumentParser(description='VAE')
     parser.add_argument('--batchsize', type=int, default=128,
                         help='Input batch size for training (default=128)')
@@ -68,6 +68,8 @@ def main():
 
         print('====> Epoch: {} Average loss: {:.4f}'.format(
               epoch, train_loss / len(data_loader.dataset)))
+
+    # TODO: add test for VAE?
 
     # train
     for i in range(1, args.n_epochs + 1):
