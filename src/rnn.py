@@ -62,14 +62,15 @@ def nll_gmm_loss(x, pi, mu, sigma, size_average=True):
     log_pdf = -1 / 2 * (sigma.prod(dim=-1).log() + (x - mu).pow(2).mul(sigma.reciprocal()).sum(dim=-1))
     log_pdf += -1 / 2 * torch.ones_like(log_pdf) * math.log(2 * math.pi)
     if size_average:
-        return logsumexp(log_pi + log_pdf, dim=-1).mean()
+        ll = logsumexp(log_pi + log_pdf, dim=-1).mean()
     else:
-        return logsumexp(log_pi + log_pdf, dim=-1).sum()
+        ll = logsumexp(log_pi + log_pdf, dim=-1).sum()
+    return -1 * ll
 
 
-# from https://github.com/pytorch/pytorch/issues/2591#issuecomment-364474328
 def logsumexp(inputs, dim=None, keepdim=False):
     """Numerically stable logsumexp.
+       from https://github.com/pytorch/pytorch/issues/2591#issuecomment-364474328
 
     Args:
         inputs: A Variable with any shape.
