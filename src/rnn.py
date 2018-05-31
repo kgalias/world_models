@@ -35,6 +35,7 @@ class MDN(nn.Module):
         return sample
 
 
+# TODO: verify architecture is similar to sketch-rnn's decoder.
 class MDNRNN(nn.Module):
     def __init__(self, action_dim=3, hidden_dim=256, latent_dim=32, n_gaussians=5):
         super(MDNRNN, self).__init__()
@@ -49,6 +50,7 @@ class MDNRNN(nn.Module):
     def forward(self, action, state, hidden_state=None):
         # TODO: initialize hidden_state if None?
         rnn_input = torch.cat((action, state), dim=-1)  # Concatenate action and state.
+        # TODO: verify whether to use both parts of hidden_state.
         output, hidden_state = self.rnn(rnn_input, hidden_state)
         output = output.view(-1, self.hidden_dim)
         pi, mu, sigma = self.mdn(output)
@@ -56,11 +58,11 @@ class MDNRNN(nn.Module):
 
 
 def nll_gmm_loss(x, pi, mu, sigma, size_average=True):
-    # TODO: maybe broadcasting works?
-    x = x.unsqueeze(1).expand_as(mu)
+    x = x.unsqueeze(2).expand_as(mu)  # TODO: maybe broadcasting works?
+    output_dim = mu.size(-1)
     log_pi = pi.log()
     log_pdf = -1 / 2 * (sigma.prod(dim=-1).log() + (x - mu).pow(2).mul(sigma.reciprocal()).sum(dim=-1))
-    log_pdf += -1 / 2 * torch.ones_like(log_pdf) * math.log(2 * math.pi)
+    log_pdf += -output_dim / 2 * torch.ones_like(log_pdf) * math.log(2 * math.pi)
     if size_average:
         ll = logsumexp(log_pi + log_pdf, dim=-1).mean()
     else:

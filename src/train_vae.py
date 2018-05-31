@@ -25,8 +25,6 @@ def main():
                         help='Dimension of latent space (default=32)')
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='enables CUDA training')
-    # parser.add_argument('--gpu_id', nargs='?', default=None,
-    #                     help='Which GPU to use (default: None)')
     parser.add_argument('--rollouts_fname',
                         help='Rollouts file name')
     parser.add_argument('--log_interval', nargs='?', default='2', type=int,
@@ -60,13 +58,13 @@ def main():
             train_loss += loss.item()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
-                print('Epoch: {} [{}/{} ({:.0f}%)]\tRec Loss: {:.6f}\tKL Loss: {:.6f}'.format(
+                print('Epoch: {0:} | Examples: {1:} / {2:}({3:.0f}%) | Rec Loss: {4: .6f} | KL Loss: {5:.6f}'.format(
                       epoch, batch_idx * len(batch), len(data_loader.dataset),
                       100. * batch_idx / len(data_loader),
                       rec_loss.item() / len(batch),
                       kl_loss.item() / len(batch)))
 
-        print('====> Epoch: {} Average loss: {:.4f}'.format(
+        print('====> Average train loss: {:.4f}'.format(
               epoch, train_loss / len(data_loader.dataset)))
 
     # TODO: add test for VAE?
