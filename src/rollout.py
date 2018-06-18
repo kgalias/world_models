@@ -24,40 +24,35 @@ class RandomAgent(object):
 
 
 # TODO: should rollout take fname? should log_interval be forced to divide n_rollouts? use (kw)args?
-def rollout(env, agent, n_rollouts, log_interval, fname, save_action=False):
+def save_rollouts(env, agent, n_rollouts, dir_name):
     """
     Collects the actions and resulting observations given an agent in an environment.
     Repeats the process n_rollouts times.
     """
-    rollouts = {'actions': [], 'observations': []}
 
+    n_frames = 0
     # TODO: parallelize?
-    for i in tqdm.tqdm(range(n_rollouts)):
+    for rollout_num in tqdm.tqdm(range(1, n_rollouts + 1)):
         with suppress_stdout():  # Suppress track generation message for tqdm to work.
             obs = env.reset()
         env.env.viewer.window.dispatch_events()  # CarRacing-v0 is bugged and corrupts obs without this.
         done = False
         reward = 0
+        rollout = {'actions': [], 'observations': [], 'rewards': [], 'dones': []}
         while not done:
             action = agent.act(obs, reward, done)
             obs, reward, done, _ = env.step(action)
-            rollouts['actions'].append(action)
-            rollouts['observations'].append(np.array(Resize((64, 64))(Image.fromarray(obs)), dtype=np.uint8))  # Resize to save space.
-        if (i + 1) % log_interval == 0:
-            save(rollouts, fname, i + 1, 'observations')
-            if save_action:
-                save(rollouts, fname, i + 1, 'actions')
+            rollout['actions'].append(np.float32(action))
+            rollout['observations'].append(np.array(Resize((64, 64))(Image.fromarray(obs)), dtype=np.uint8))  # Resize to save space.
+            rollout['rewards'].append(np.float32(reward))
+            rollout['dones'].append(np.uint8(done))
+            n_frames += 1
 
-    save(rollouts, fname, n_rollouts, 'observations')
-    if save_action:
-        save(rollouts, fname, n_rollouts, 'actions')
-
-
-def save(rollouts, fname, rollout_num, data_name):
-    np.save(os.path.join(DATA_DIR, 'rollouts',
-                         fname + '_' + datetime.datetime.today().isoformat()) + '_' + str(
-                         rollout_num) + '_' + data_name[:3],
-            np.array(rollouts[data_name]))
+        np.savez(os.path.join(DATA_DIR, 'rollouts', dir_name, str(rollout_num)),
+                 **rollout)
+    # keep track of total number of observations
+    os.rename(os.path.join(DATA_DIR, 'rollouts', dir_name),
+              os.path.join(DATA_DIR, 'rollouts', dir_name) + '_' + str(n_frames))
 
 
 def main():
@@ -69,10 +64,10 @@ def main():
                         help='Agent to run')
     parser.add_argument('--n_rollouts', nargs='?', default='10000', type=int,
                         help='How many rollouts to perform')
-    parser.add_argument('--save_action', action='store_true', default=False,
-                        help='Saves actions as well as observations')
-    parser.add_argument('--log_interval', nargs='?', default='500', type=int,
-                        help='After how many rollouts to log')
+    # parser.add_argument('--save_action', action='store_true', default=False,
+    #                     help='Saves actions as well as observations')
+    # parser.add_argument('--log_interval', nargs='?', default='500', type=int,
+    #                     help='After how many rollouts to log')
     args = parser.parse_args()
 
     if args.env == 'CarRacing-v0':
@@ -85,11 +80,13 @@ def main():
     else:
         raise NotImplementedError('Agent not supported: ' + args.agent)
 
-    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts')):
-        os.makedirs(os.path.join(DATA_DIR, 'rollouts'))
+    start_time = datetime.datetime.today().isoformat()
+    dir_name = args.env + '_' + args.agent + '_' + start_time
 
-    fname = args.env + '_' + args.agent
-    rollout(env, agent, args.n_rollouts, args.log_interval, fname, args.save_action)
+    # if not os.path.exists(os.path.join(DATA_DIR, 'rollouts')):
+    os.makedirs(os.path.join(DATA_DIR, 'rollouts', dir_name))
+
+    save_rollouts(env, agent, args.n_rollouts, dir_name)
 
 if __name__ == '__main__':
     main()

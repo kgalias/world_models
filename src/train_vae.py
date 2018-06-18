@@ -32,7 +32,7 @@ def main():
     args = parser.parse_args()
 
     # read in and preprocess data
-    dataset = RolloutDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
+    dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
                              size=int(args.rollouts_fname.split('.')[-2].split('_')[-2]) * 1000,  # TODO: hack
                              transform=ToTensor())
     data_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
@@ -49,6 +49,7 @@ def main():
         vae.train()
         train_loss = 0
         for batch_idx, batch in enumerate(data_loader):
+            batch = batch['obs']
             batch = batch.to(device)
             optimizer.zero_grad()
             recon_batch, mu, logvar = vae(batch)

@@ -65,23 +65,23 @@ def main():
 
     # TODO: is there a nicer way to keep observation and action data synchronized?
     # TODO: currently takes batchsize*seq_len samples and reshapes. Is there a nicer way to do this?
-    obs_dataset = RolloutDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.obs_fname),
+    obs_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.obs_fname),
                                  size=int(args.obs_fname.split('.')[-2].split('_')[-2]) * 1000,
                                  transform=ToTensor())
     obs_loader = DataLoader(obs_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
 
-    act_dataset = RolloutDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.act_fname),
+    act_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.act_fname),
                                  size=int(args.act_fname.split('.')[-2].split('_')[-2]) * 1000,
                                  image=False,
                                  transform=torch.Tensor)
     act_loader = DataLoader(act_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
 
-    obs_test_dataset = RolloutDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.obs_test_fname),
+    obs_test_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.obs_test_fname),
                                       size=int(args.obs_test_fname.split('.')[-2].split('_')[-2]) * 1000,
                                       transform=ToTensor())
     obs_test_loader = DataLoader(obs_test_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
 
-    act_test_dataset = RolloutDataset(path_to_file=os.path.join(DATA_DIR, 'rollouts', args.act_test_fname),
+    act_test_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.act_test_fname),
                                       size=int(args.act_test_fname.split('.')[-2].split('_')[-2]) * 1000,
                                       image=False,
                                       transform=torch.Tensor)
@@ -126,7 +126,7 @@ def main():
             # z_batch = z_batch.unsqueeze(0)
             # act_batch = act_batch.unsqueeze(0)
 
-            pi, mu, sigma, hidden = mdnrnn(act_batch, z_batch)
+            pi, mu, sigma, hidden = mdnrnn(act_batch, z_batch)  # TODO: figure out if need to pass hidden_state here.
             # output = mdnrnn.mdn.sample(pi, mu, sigma)  # Need output for anything in training?
 
             # Reshape for calculating the loss.
