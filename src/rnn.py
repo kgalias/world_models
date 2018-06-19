@@ -44,7 +44,7 @@ class MDNRNN(nn.Module):
         # h_0 of shape (num_layers * num_directions, batch, hidden_size)
         # c_0 of shape (num_layers * num_directions, batch, hidden_size)
         self.hidden_dim = hidden_dim
-        self.rnn = nn.LSTM(input_size=action_dim+latent_dim, hidden_size=hidden_dim)
+        self.rnn = nn.LSTM(input_size=action_dim+latent_dim, hidden_size=hidden_dim)  # TODO: add dropout?
         self.mdn = MDN(input_dim=hidden_dim, output_dim=latent_dim, n_gaussians=n_gaussians)
 
     def forward(self, action, state, hidden_state=None):

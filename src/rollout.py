@@ -50,6 +50,7 @@ def save_rollouts(env, agent, n_rollouts, dir_name):
 
         np.savez(os.path.join(DATA_DIR, 'rollouts', dir_name, str(rollout_num)),
                  **rollout)
+
     # keep track of total number of observations
     os.rename(os.path.join(DATA_DIR, 'rollouts', dir_name),
               os.path.join(DATA_DIR, 'rollouts', dir_name) + '_' + str(n_frames))
@@ -59,15 +60,11 @@ def main():
     # TODO: have consistent (with other files) argument descriptions.
     parser = argparse.ArgumentParser(description='Rollout of an agent in an environment')
     parser.add_argument('--env', nargs='?', default='CarRacing-v0',
-                        help='Environment to use')
+                        help='Environment to use (default=CarRacing-v0)')
     parser.add_argument('--agent', nargs='?', default='RandomAgent',
-                        help='Agent to run')
+                        help='Agent to run (default=RandomAgent)')
     parser.add_argument('--n_rollouts', nargs='?', default='10000', type=int,
-                        help='How many rollouts to perform')
-    # parser.add_argument('--save_action', action='store_true', default=False,
-    #                     help='Saves actions as well as observations')
-    # parser.add_argument('--log_interval', nargs='?', default='500', type=int,
-    #                     help='After how many rollouts to log')
+                        help='How many rollouts to perform (default=10000)')
     args = parser.parse_args()
 
     if args.env == 'CarRacing-v0':

@@ -34,61 +34,39 @@ def main():
                         help='enables CUDA training')
     parser.add_argument('--vae_fname',
                         help='VAE model file name')
-    parser.add_argument('--obs_fname',
-                        help='Observation rollouts file name')
-    parser.add_argument('--act_fname',
-                        help='Action rollouts file name')
-    parser.add_argument('--obs_test_fname',
-                        help='Observation rollouts test file name')
-    parser.add_argument('--act_test_fname',
-                        help='Action rollouts test file name')
+    parser.add_argument('--train_dir_name',
+                        help='Rollouts directory name for training')
+    parser.add_argument('--test_dir_name',
+                        help='Rollouts directory name for testing')
+    # parser.add_argument('--act_fname',
+    #                     help='Action rollouts file name')
+    # parser.add_argument('--obs_test_fname',
+    #                     help='Observation rollouts test file name')
+    # parser.add_argument('--act_test_fname',
+    #                     help='Action rollouts test file name')
     parser.add_argument('--log_interval', nargs='?', default='2', type=int,
                         help='After how many epochs to log')
     args = parser.parse_args()
 
     # TODO: do better?
-    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts', args.obs_fname)):
-        print("File {} does not exist.".format(args.obs_fname))
+    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts', args.train_dir_name)):
+        print("Folder {} does not exist.".format(args.train_dir_name))
+        pass
+    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts', args.test_dir_name)):
+        print("Folder {} does not exist.".format(args.test_dir_name))
         pass
 
-    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts', args.act_fname)):
-        print("File {} does not exist.".format(args.act_fname))
-        pass
-
-    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts', args.obs_test_fname)):
-        print("File {} does not exist.".format(args.obs_test_fname))
-        pass
-
-    if not os.path.exists(os.path.join(DATA_DIR, 'rollouts', args.act_test_fname)):
-        print("File {} does not exist.".format(args.act_test_fname))
-        pass
-
-    # TODO: is there a nicer way to keep observation and action data synchronized?
+    # TODO: need temporal order, but would like to shuffle
     # TODO: currently takes batchsize*seq_len samples and reshapes. Is there a nicer way to do this?
-    obs_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.obs_fname),
-                                 size=int(args.obs_fname.split('.')[-2].split('_')[-2]) * 1000,
-                                 transform=ToTensor())
-    obs_loader = DataLoader(obs_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
+    train_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.train_dir_name),
+                                   size=int(args.train_dir_name.split('_')[-1]),  # TODO: hack. fix?
+                                   transform=ToTensor())
+    train_loader = DataLoader(train_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
 
-    act_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.act_fname),
-                                 size=int(args.act_fname.split('.')[-2].split('_')[-2]) * 1000,
-                                 image=False,
-                                 transform=torch.Tensor)
-    act_loader = DataLoader(act_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
-
-    obs_test_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.obs_test_fname),
-                                      size=int(args.obs_test_fname.split('.')[-2].split('_')[-2]) * 1000,
-                                      transform=ToTensor())
-    obs_test_loader = DataLoader(obs_test_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
-
-    act_test_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.act_test_fname),
-                                      size=int(args.act_test_fname.split('.')[-2].split('_')[-2]) * 1000,
-                                      image=False,
-                                      transform=torch.Tensor)
-    act_test_loader = DataLoader(act_test_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
-
-    assert len(obs_dataset) == len(act_dataset)
-    assert len(obs_test_dataset) == len(act_test_dataset)
+    test_dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.test_dir_name),
+                                  size=int(args.test_dir_name.split('_')[-1]),  # TODO: hack. fix?
+                                  transform=ToTensor())
+    test_loader = DataLoader(test_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
@@ -103,7 +81,10 @@ def main():
     def train(epoch):
         mdnrnn.train()
         train_loss = 0
-        for batch_idx, (obs_batch, act_batch) in enumerate(zip(obs_loader, act_loader)):
+        for batch_idx, batch in enumerate(train_loader):
+
+            obs_batch = batch['obs']
+            act_batch = batch['action']
 
             obs_batch = obs_batch.to(device)
             act_batch = act_batch.to(device)
@@ -142,18 +123,21 @@ def main():
             # TODO: make output line up in columns.
             if batch_idx % args.log_interval == 0:
                 print("Epoch: {0:} | Examples: {1:}/{2:} ({3:.0f}%) | Loss: {4:.2f}\t".format(
-                      epoch, batch_idx * len(obs_batch), len(obs_loader.dataset),
-                      100. * batch_idx / len(obs_loader),
+                      epoch, batch_idx * len(obs_batch), len(train_loader.dataset),
+                      100. * batch_idx / len(train_loader),
                       loss.item() / len(obs_batch)))
 
         print('====> Average train loss: {:.4f}'.format(
-              train_loss / len(obs_loader.dataset)))
+              train_loss / len(train_loader.dataset)))
 
     def test(epoch):
         mdnrnn.eval()
         test_loss = 0
         with torch.no_grad():
-            for batch_idx, (obs_batch, act_batch) in enumerate(zip(obs_test_loader, act_test_loader)):
+            for batch_idx, batch in enumerate(test_loader):
+                obs_batch = batch['obs']
+                act_batch = batch['action']
+
                 obs_batch = obs_batch.to(device)
                 act_batch = act_batch.to(device)
 
@@ -182,7 +166,7 @@ def main():
 
                 test_loss += nll_gmm_loss(targets, pi, mu, sigma).item()
 
-        print('====> Average test loss: {:.4f}'.format(test_loss / len(obs_test_loader.dataset)))
+        print('====> Average test loss: {:.4f}'.format(test_loss / len(test_loader.dataset)))
 
     # train/test loop
     for i in range(1, args.n_epochs + 1):

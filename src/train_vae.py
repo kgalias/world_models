@@ -25,15 +25,15 @@ def main():
                         help='Dimension of latent space (default=32)')
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='enables CUDA training')
-    parser.add_argument('--rollouts_fname',
-                        help='Rollouts file name')
+    parser.add_argument('--dir_name',
+                        help='Rollouts directory name')
     parser.add_argument('--log_interval', nargs='?', default='2', type=int,
                         help='After how many epochs to log')
     args = parser.parse_args()
 
     # read in and preprocess data
-    dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.rollouts_fname),
-                             size=int(args.rollouts_fname.split('.')[-2].split('_')[-2]) * 1000,  # TODO: hack
+    dataset = RolloutDataset(path_to_dir=os.path.join(DATA_DIR, 'rollouts', args.dir_name),
+                             size=int(args.dir_name.split('_')[-1]),  # TODO: hack. fix?
                              transform=ToTensor())
     data_loader = DataLoader(dataset, batch_size=args.batchsize, shuffle=True)
 
@@ -59,7 +59,7 @@ def main():
             train_loss += loss.item()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
-                print('Epoch: {0:} | Examples: {1:} / {2:}({3:.0f}%) | Rec Loss: {4: .6f} | KL Loss: {5:.6f}'.format(
+                print('Epoch: {0:} | Examples: {1:} / {2:}({3:.0f}%) | Rec Loss: {4: .4f} | KL Loss: {5:.4f}'.format(
                       epoch, batch_idx * len(batch), len(data_loader.dataset),
                       100. * batch_idx / len(data_loader),
                       rec_loss.item() / len(batch),

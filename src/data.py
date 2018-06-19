@@ -10,13 +10,12 @@ from torch.utils.data import Dataset
 class RolloutDataset(Dataset):
 
     def __init__(self, path_to_dir, size, transform=None):
-        # """
-        # Args:
-        #     path_to_dir (string): Path to file.
-        #     size (int): Number of observations in file.
-        #     image (bool): Whether the date is comprised of images.
-        #     transform (callable, optional): Optional transform to be applied on a sample.
-        # """
+        """
+        Args:
+            path_to_dir (string): Path to directory with rollouts.
+            size (int): Number of observations in directory altogether.
+            transform (callable, optional): Optional transform to be applied on an observation.
+        """
         self.path_to_dir = path_to_dir
         self.size = size
         self.transform = transform
@@ -26,8 +25,10 @@ class RolloutDataset(Dataset):
 
     def __getitem__(self, idx):
         # TODO: currently assume that all rollouts have length 1000. fix?
-        curr_idx = idx // 1000 + 1
-        rollout = np.load(os.path.join(self.path_to_dir, str(curr_idx) + '.npz'))
+        file_idx = idx // 1000 + 1  # which file (file numbering starts at 1)
+        curr_idx = idx - (file_idx - 1) * 1000  # what number in file
+
+        rollout = np.load(os.path.join(self.path_to_dir, str(file_idx) + '.npz'))
 
         obs = rollout['observations'][curr_idx]
         action = rollout['actions'][curr_idx]
