@@ -17,7 +17,7 @@ from src import DATA_DIR
 
 def main():
     # TODO: have consistent (with other files) argument descriptions.
-    parser = argparse.ArgumentParser(description='VAE')
+    parser = argparse.ArgumentParser(description='RNN')
     parser.add_argument('--batchsize', type=int, default=128,
                         help='Input batch size for training (default=128)')
     parser.add_argument('--n_epochs', type=int, default=10,
@@ -28,6 +28,8 @@ def main():
                         help='Length of sequences for learning (default=10)')
     parser.add_argument('--action_dim', type=int, default=3,
                         help='Dimension of action space (default=3)')
+    parser.add_argument('--rnn_hidden_dim', type=int, default=256,
+                        help='Dimension of RNN hidden state (default=256)')
     parser.add_argument('--n_gaussians', type=int, default=5,
                         help='Number of gaussians for the Mixture Density Network (default=5)')
     parser.add_argument('--cuda', action='store_true', default=False,
@@ -38,12 +40,6 @@ def main():
                         help='Rollouts directory name for training')
     parser.add_argument('--test_dir_name',
                         help='Rollouts directory name for testing')
-    # parser.add_argument('--act_fname',
-    #                     help='Action rollouts file name')
-    # parser.add_argument('--obs_test_fname',
-    #                     help='Observation rollouts test file name')
-    # parser.add_argument('--act_test_fname',
-    #                     help='Action rollouts test file name')
     parser.add_argument('--log_interval', nargs='?', default='2', type=int,
                         help='After how many epochs to log')
     args = parser.parse_args()
@@ -68,14 +64,18 @@ def main():
                                   transform=ToTensor())
     test_loader = DataLoader(test_dataset, batch_size=args.batchsize*args.seq_len, shuffle=False)
 
+    # set up model and optimizer
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
 
-    vae = VAE()
+    vae = VAE(latent_dim=args.latent_dim)
     vae.load_state_dict(torch.load(os.path.join(DATA_DIR, 'vae', args.vae_fname)))
     vae.to(device)
 
-    mdnrnn = MDNRNN(latent_dim=args.latent_dim, n_gaussians=args.n_gaussians).to(device)
+    mdnrnn = MDNRNN(action_dim=args.action_dim,
+                    hidden_dim=args.rnn_hidden_dim,
+                    latent_dim=args.latent_dim,
+                    n_gaussians=args.n_gaussians).to(device)
     optimizer = optim.Adam(mdnrnn.parameters())  # TODO: use different optimizer?
 
     def train(epoch):

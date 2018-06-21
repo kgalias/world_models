@@ -41,7 +41,7 @@ def main():
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
 
-    vae = VAE().to(device)
+    vae = VAE(latent_dim=args.latent_dim).to(device)
     optimizer = optim.Adam(vae.parameters())
 
     # training procedure
@@ -70,7 +70,7 @@ def main():
 
     # TODO: add test for VAE?
 
-    # train
+    # train loop
     for i in range(1, args.n_epochs + 1):
         train(i)
 

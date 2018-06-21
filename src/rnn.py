@@ -37,7 +37,7 @@ class MDN(nn.Module):
 
 # TODO: verify architecture is similar to sketch-rnn's decoder.
 class MDNRNN(nn.Module):
-    def __init__(self, action_dim=3, hidden_dim=256, latent_dim=32, n_gaussians=5):
+    def __init__(self, action_dim, hidden_dim, latent_dim, n_gaussians):
         super(MDNRNN, self).__init__()
         # input, (h_0, c_0)
         # input of shape (seq_len, batch, input_size)
