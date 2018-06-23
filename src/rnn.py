@@ -44,19 +44,20 @@ class MDNRNN(nn.Module):
         # h_0 of shape (num_layers * num_directions, batch, hidden_size)
         # c_0 of shape (num_layers * num_directions, batch, hidden_size)
         self.hidden_dim = hidden_dim
-        self.rnn = nn.LSTM(input_size=action_dim+latent_dim, hidden_size=hidden_dim)  # TODO: add dropout?
+        self.rnn = nn.LSTM(input_size=action_dim+latent_dim, hidden_size=hidden_dim, batch_first=True)
         self.mdn = MDN(input_dim=hidden_dim, output_dim=latent_dim, n_gaussians=n_gaussians)
 
     def forward(self, action, state, hidden_state=None):
-        # TODO: initialize hidden_state if None?
         rnn_input = torch.cat((action, state), dim=-1)  # Concatenate action and state.
         # TODO: verify whether to use both parts of hidden_state.
         output, hidden_state = self.rnn(rnn_input, hidden_state)
+        output = output.contiguous()  # TODO: understand what this is for.
         output = output.view(-1, self.hidden_dim)
         pi, mu, sigma = self.mdn(output)
         return pi, mu, sigma, hidden_state
 
 
+# TODO: make the loss work on samples of shape (batch_size, seq_len, ..)?
 def nll_gmm_loss(x, pi, mu, sigma, size_average=True):
     x = x.unsqueeze(2).expand_as(mu)  # TODO: maybe broadcasting works?
     output_dim = mu.size(-1)

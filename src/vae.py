@@ -53,7 +53,9 @@ class VAE(nn.Module):
         return self.decode(z), mu, logvar
 
 
-def vae_loss(recon_x, x, mu, logvar):
-    l2 = F.mse_loss(recon_x, x, size_average=False)  # reconstruction loss
-    kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())  # KL loss
+def vae_loss(recon_x, x, mu, logvar, kl_bound):
+    latent_dim = mu.size(1)
+    l2 = F.mse_loss(recon_x, x, size_average=False)  # Reconstruction loss.
+    kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1)  # Kullback-Leibler loss.
+    kl = kl.clamp(min=kl_bound*latent_dim).mean()  # is this a poor man's beta?
     return l2, kl

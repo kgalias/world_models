@@ -30,7 +30,6 @@ def save_rollouts(env, agent, n_rollouts, dir_name):
     Repeats the process n_rollouts times.
     """
 
-    n_frames = 0
     # TODO: parallelize?
     for rollout_num in tqdm.tqdm(range(1, n_rollouts + 1)):
         with suppress_stdout():  # Suppress track generation message for tqdm to work.
@@ -46,18 +45,12 @@ def save_rollouts(env, agent, n_rollouts, dir_name):
             rollout['observations'].append(np.array(Resize((64, 64))(Image.fromarray(obs)), dtype=np.uint8))  # Resize to save space.
             rollout['rewards'].append(np.float32(reward))
             rollout['dones'].append(np.uint8(done))
-            n_frames += 1
 
         np.savez(os.path.join(DATA_DIR, 'rollouts', dir_name, str(rollout_num)),
                  **rollout)
 
-    # keep track of total number of observations
-    os.rename(os.path.join(DATA_DIR, 'rollouts', dir_name),
-              os.path.join(DATA_DIR, 'rollouts', dir_name) + '_' + str(n_frames))
-
 
 def main():
-    # TODO: have consistent (with other files) argument descriptions.
     parser = argparse.ArgumentParser(description='Rollout of an agent in an environment')
     parser.add_argument('--env', nargs='?', default='CarRacing-v0',
                         help='Environment to use (default=CarRacing-v0)')
@@ -78,9 +71,7 @@ def main():
         raise NotImplementedError('Agent not supported: ' + args.agent)
 
     start_time = datetime.datetime.today().isoformat()
-    dir_name = args.env + '_' + args.agent + '_' + start_time
-
-    # if not os.path.exists(os.path.join(DATA_DIR, 'rollouts')):
+    dir_name = args.env + '_' + args.agent + '_' + start_time + '_' + args.n_rollouts
     os.makedirs(os.path.join(DATA_DIR, 'rollouts', dir_name))
 
     save_rollouts(env, agent, args.n_rollouts, dir_name)
