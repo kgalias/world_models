@@ -46,7 +46,7 @@ def main():
                         help='After how many epochs to log')
     args = parser.parse_args()
 
-    # TODO: do better?
+    # TODO: is there a better way to do this?
     if not os.path.exists(os.path.join(DATA_DIR, 'rollouts', args.train_dir_name)):
         print("Folder {} does not exist.".format(args.train_dir_name))
         pass
@@ -63,30 +63,30 @@ def main():
                                   size=int(args.test_dir_name.split('_')[-1]))  # TODO: hack. fix?
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
 
-    # Set up the model and the optimizer.
+    # Use GPU if available.
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
 
+    # Load the VAE model from file.
     vae = VAE(latent_dim=args.latent_dim)
     vae.load_state_dict(torch.load(os.path.join(DATA_DIR, 'vae', args.vae_fname)))
     vae.to(device)
 
+    # Set up the MDNRNN model and the optimizer.
     mdnrnn = MDNRNN(action_dim=args.action_dim,
                     hidden_dim=args.rnn_hidden_dim,
                     latent_dim=args.latent_dim,
                     n_gaussians=args.n_gaussians).to(device)
     optimizer = optim.Adam(params=mdnrnn.parameters(), lr=args.learning_rate)
 
+    # Train procedure.
     def train(epoch):
         mdnrnn.train()
         train_loss = 0
         start_time = datetime.datetime.now()
-        for batch_idx, batch in enumerate(train_loader):
-            obs_batch = batch['obs']
-            act_batch = batch['act']
-
-            obs_batch = obs_batch.to(device)
-            act_batch = act_batch.to(device)
+        for batch_id, batch in enumerate(train_loader):
+            obs_batch = batch['obs'].to(device)
+            act_batch = batch['act'].to(device)
 
             optimizer.zero_grad()
 
@@ -104,9 +104,9 @@ def main():
             # output = mdnrnn.mdn.sample(pi, mu, sigma)  # Need output for anything in training?
 
             # Reshape for calculating the loss.
-            pi = pi.view(-1, args.seq_len-1, args.n_gaussians)
-            mu = mu.view(-1, args.seq_len-1, args.n_gaussians, args.latent_dim)
-            sigma = sigma.view(-1, args.seq_len-1, args.n_gaussians, args.latent_dim)
+            # pi = pi.view(-1, args.seq_len-1, args.n_gaussians)
+            # mu = mu.view(-1, args.seq_len-1, args.n_gaussians, args.latent_dim)
+            # sigma = sigma.view(-1, args.seq_len-1, args.n_gaussians, args.latent_dim)
 
             loss = nll_gmm_loss(targets, pi, mu, sigma)
             loss.backward()
@@ -115,10 +115,10 @@ def main():
             torch.nn.utils.clip_grad_value_(mdnrnn.parameters(), args.grad_clip)
             optimizer.step()
 
-            if batch_idx % args.log_interval == 0:
+            if batch_id % args.log_interval == 0:
                 print("Epoch: {0:}\t| Examples: {1:}/{2:} ({3:.0f}%)\t| Loss: {4:.2f}\t".format(
-                      epoch, (batch_idx+1) * len(obs_batch), len(train_loader.dataset),
-                      100. * (batch_idx+1) / len(train_loader),
+                      epoch, (batch_id+1) * len(obs_batch), len(train_loader.dataset),
+                      100. * (batch_id+1) / len(train_loader),
                       loss.item() / len(obs_batch)))
 
         duration = datetime.datetime.now() - start_time
@@ -126,16 +126,14 @@ def main():
               epoch, train_loss / len(train_loader.dataset),
               *divmod(int(duration.total_seconds()), 60)))
 
+    # Test procedure.
     def test(epoch):
         mdnrnn.eval()
         test_loss = 0
         with torch.no_grad():
-            for batch_idx, batch in enumerate(test_loader):
-                obs_batch = batch['obs']
-                act_batch = batch['act']
-
-                obs_batch = obs_batch.to(device)
-                act_batch = act_batch.to(device)
+            for batch_id, batch in enumerate(test_loader):
+                obs_batch = batch['obs'].to(device)
+                act_batch = batch['act'].to(device)
 
                 # Encode obs using VAE.
                 vae_obs_batch = obs_batch.view((-1,) + obs_batch.size()[2:])  # Reshape for VAE.
@@ -149,16 +147,11 @@ def main():
 
                 pi, mu, sigma, hidden = mdnrnn(act_batch, z_batch)
 
-                # Reshape for calculating the loss.
-                pi = pi.view(-1, args.seq_len - 1, args.n_gaussians)
-                mu = mu.view(-1, args.seq_len - 1, args.n_gaussians, args.latent_dim)
-                sigma = sigma.view(-1, args.seq_len - 1, args.n_gaussians, args.latent_dim)
-
                 test_loss += nll_gmm_loss(targets, pi, mu, sigma).item()
         print('Epoch {} average test loss was {:.4f}.'.format(
               epoch, test_loss / len(test_loader.dataset)))
 
-    # train/test loop
+    # Train/test loop.
     for i in range(1, args.n_epochs + 1):
         train(i)
         test(i)

@@ -6,51 +6,70 @@ import argparse
 
 import numpy as np
 import torch
+import torch.multiprocessing as mp
 from torch.multiprocessing import Queue
-from torch import optim
-from torch.utils.data import DataLoader
-from torchvision.transforms import ToTensor
 
+import gym
 from estool.es import CMAES
 
-from src.data import RolloutDataset
-from src.vae import VAE, vae_loss
-from src.rnn import MDNRNN, nll_gmm_loss
+from src.vae import VAE
+from src.rnn import MDNRNN
 from src.controller import Controller
+from src.utils import suppress_stdout, obs_to_array, obs_array_to_tensor, param_count, updated_model
 from src import DATA_DIR
 
 
-def param_count(model):
-    """Returns number of trainable parameters of given model."""
-    n_params = 0
-    for param in model.parameters():
-        if param.requires_grad:  # only count the trainable parameters
-            n_params += param.detach().cpu().numpy().flatten().shape[0]
-    return n_params
+class ControllerAgent(object):
+    def __init__(self, controller_params, vae, v_dim, action_dim, m_dim):
+        self.controller = Controller(v_dim, action_dim, m_dim)
+        self.controller = updated_model(self.controller, controller_params)
+        self.vae = vae
+        self.vae.eval()
+
+    def act(self, obs, reward, done, mem):
+        obs = obs_to_array(obs)  # Convert to resized np.array.
+        obs = obs[None, :]  # Add dummy dimension for batch size.
+        obs = obs_array_to_tensor(obs)  # Transform to normalized PyTorch tensor with channels first.
+        with torch.no_grad():
+            enc_obs = self.vae.reparameterize(*self.vae.encode(obs))  # TODO: want sampling here?
+        return self.controller(enc_obs, mem)
 
 
-def updated_model(model, params):
-    """Sets model parameters with supplied array.
+class Specimen(mp.Process):
+    def __init__(self, env_name, controller_params, vae, v_dim, action_dim, m_dim, n_rollouts=1):
+        super(Specimen, self).__init__()
+        self.env_name = env_name
+        self.controller_params = controller_params
+        self.vae = vae
+        self.v_dim = v_dim
+        self.act_dim = action_dim
+        self.m_dim = m_dim
+        self.n_rollouts = n_rollouts
 
-    Args:
-        model: A PyTorch model.
-        params: A numpy.array containing the appropriate number of parameters.
+    # TODO: add support for memory.
+    def run(self):
+        if self.env_name == 'CarRacing-v0':
+            env = gym.make(self.env_name)
+        else:
+            raise NotImplementedError('Environment not supported: ' + self.env_name)
+        agent = ControllerAgent(self.controller_params, self.vae, self.v_dim, self.action_dim, self.m_dim)
+        rewards = []
+        for rollout_num in range(1, self.n_rollouts+1):
+            ep_reward = 0
+            with suppress_stdout():  # Suppress track generation message.
+                obs = env.reset()
+            env.env.viewer.window.dispatch_events()  # CarRacing-v0 is bugged and corrupts obs without this.
+            done = False
+            reward = 0
 
-    Returns:
-        The model with its weights set as the supplied array.
-    """
-    assert param_count(model) == len(params)
+            while not done:
+                action = agent.act(obs, reward, done)
+                obs, reward, done, _ = env.step(action)
+                ep_reward += reward
 
-    dtype = next(model.parameters()).type()
+            rewards.append(ep_reward)
 
-    offset = 0
-
-    for param in model.parameters():
-        if param.requires_grad:
-            param.data = torch.from_numpy(params[offset:offset + param.numel()]).view(param.size()).type(dtype)
-            offset += param.numel()
-
-    return model
+        return rewards
 
 
 def main():
@@ -89,18 +108,21 @@ def main():
     # device = torch.device('cuda' if use_cuda else 'cpu')
     device = torch.device('cpu')
 
+    # Load the VAE model from file.
     vae = VAE(latent_dim=args.latent_dim)
     vae.load_state_dict(torch.load(os.path.join(DATA_DIR, 'vae', args.vae_fname)))
     vae.to(device)
 
+    # Load the MDNRNN model from file.
     mdnrnn = MDNRNN(action_dim=args.action_dim,
                     hidden_dim=args.rnn_hidden_dim,
                     latent_dim=args.latent_dim,
-                    n_gaussians=args.n_gaussians).to(device)
+                    n_gaussians=args.n_gaussians)
     mdnrnn.load_state_dict(torch.load(os.path.join(DATA_DIR, 'rnn', args.rnn_fname)))
     mdnrnn.to(device)
 
-    controller = Controller(v_dim=args.latent_dim, act_dim=args.action_dim, m_dim=args.rnn_hidden_dim).to(device)
+    # Set up controller model.
+    controller = Controller(v_dim=args.latent_dim, action_dim=args.action_dim, m_dim=args.rnn_hidden_dim).to(device)
 
     # __init__(self, num_params,  # number of model parameters
     #          sigma_init=0.10,  # initial standard deviation

@@ -7,7 +7,6 @@ from torch.nn import functional as F
 from torch.distributions import Categorical
 
 
-# TODO: add temperature
 class MDN(nn.Module):
     def __init__(self, input_dim, output_dim, n_gaussians):
         super(MDN, self).__init__()
@@ -25,6 +24,7 @@ class MDN(nn.Module):
         sigma = sigma.view(-1, self.n_gaussians, self.output_dim)
         return pi, mu, sigma
 
+    # TODO: add temperature.
     def sample(self, pi, mu, sigma):
         cat = Categorical(pi)
         pi_idxs = cat.sample().cpu().numpy()
@@ -35,31 +35,32 @@ class MDN(nn.Module):
         return sample
 
 
-# TODO: verify architecture is similar to sketch-rnn's decoder.
 class MDNRNN(nn.Module):
     def __init__(self, action_dim, hidden_dim, latent_dim, n_gaussians):
         super(MDNRNN, self).__init__()
-        # input, (h_0, c_0)
-        # input of shape (seq_len, batch, input_size)
-        # h_0 of shape (num_layers * num_directions, batch, hidden_size)
-        # c_0 of shape (num_layers * num_directions, batch, hidden_size)
         self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+        self.n_gaussians = n_gaussians
         self.rnn = nn.LSTM(input_size=action_dim+latent_dim, hidden_size=hidden_dim, batch_first=True)
         self.mdn = MDN(input_dim=hidden_dim, output_dim=latent_dim, n_gaussians=n_gaussians)
 
     def forward(self, action, state, hidden_state=None):
+        seq_len = action.size(1) + 1
         rnn_input = torch.cat((action, state), dim=-1)  # Concatenate action and state.
         # TODO: verify whether to use both parts of hidden_state.
         output, hidden_state = self.rnn(rnn_input, hidden_state)
-        output = output.contiguous()  # TODO: understand what this is for.
+        output = output.contiguous()
         output = output.view(-1, self.hidden_dim)
         pi, mu, sigma = self.mdn(output)
+        # Reshape to (batch_size, seq_len, ..).
+        pi = pi.view(-1, seq_len-1, self.n_gaussians)
+        mu = mu.view(-1, seq_len-1, self.n_gaussians, self.latent_dim)
+        sigma = sigma.view(-1, seq_len-1, self.n_gaussians, self.latent_dim)
         return pi, mu, sigma, hidden_state
 
 
-# TODO: make the loss work on samples of shape (batch_size, seq_len, ..)?
 def nll_gmm_loss(x, pi, mu, sigma, size_average=True):
-    x = x.unsqueeze(2).expand_as(mu)  # TODO: maybe broadcasting works?
+    x = x.unsqueeze(2)  # For broadcasting on the pi dimension.
     output_dim = mu.size(-1)
     log_pi = pi.log()
     log_pdf = -1 / 2 * (sigma.prod(dim=-1).log() + (x - mu).pow(2).mul(sigma.reciprocal()).sum(dim=-1))

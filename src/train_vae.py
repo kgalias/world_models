@@ -41,23 +41,51 @@ def main():
                              size=int(args.dir_name.split('_')[-1]))  # TODO: hack. fix?
     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
-    # Set up the model and the optimizer.
+    # Use GPU if available.
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
 
+    # Set up the model and the optimizer.
     vae = VAE(latent_dim=args.latent_dim).to(device)
     optimizer = optim.Adam(params=vae.parameters(), lr=args.learning_rate)
 
-    # training procedure
+    # Training procedure.
     def train(epoch):
         vae.train()
         train_loss = 0
         start_time = datetime.datetime.now()
-        for batch_idx, batch in enumerate(data_loader):
+
+        # for rollout_id, rollout in enumerate(data_loader):
+        #     n_batches = len(rollout.squeeze()['obs']) // args.batch_size
+        #     for batch_id in range(n_batches):
+        #         start, stop = args.batch_size * batch_id, args.batch_size * (batch_id + 1)
+        #         batch = rollout.squeeze()['obs'][start:stop]
+        #         batch = batch.to(device)
+        #
+        #         optimizer.zero_grad()
+        #
+        #         recon_batch, mu, logvar = vae(batch)
+        #         rec_loss, kl_loss = vae_loss(recon_batch, batch, mu, logvar, kl_bound=args.kl_bound)
+        #         loss = rec_loss + kl_loss
+        #         loss.backward()
+        #         train_loss += loss.item()
+        #
+        #         optimizer.step()
+        #
+        #         if batch_id % args.log_interval == 0:
+        #             print(
+        #                 'Epoch: {0:}\t| Examples: {1:} / {2:}({3:.0f}%)\t| Rec Loss: {4: .4f}\t| KL Loss: {5:.4f}'
+        #                  .format(epoch, (batch_id + 1) * len(batch), len(data_loader.dataset),
+        #                          100. * (batch_id + 1) / len(data_loader),
+        #                          rec_loss.item() / len(batch),
+        #                          kl_loss.item() / len(batch)))
+
+        for batch_id, batch in enumerate(data_loader):
             batch = batch['obs']
             # Take a random observation from each rollout.
             batch = batch[torch.arange(args.batch_size, dtype=torch.long),
                           torch.randint(high=1000, size=(args.batch_size,), dtype=torch.long)]
+            # TODO: use all obs from the rollout (from the randomized start)?
             batch = batch.to(device)
 
             optimizer.zero_grad()
@@ -70,10 +98,10 @@ def main():
 
             optimizer.step()
 
-            if batch_idx % args.log_interval == 0:
+            if batch_id % args.log_interval == 0:
                 print('Epoch: {0:}\t| Examples: {1:} / {2:}({3:.0f}%)\t| Rec Loss: {4: .4f}\t| KL Loss: {5:.4f}'.format(
-                      epoch, (batch_idx+1) * len(batch), len(data_loader.dataset),
-                      100. * (batch_idx+1) / len(data_loader),
+                      epoch, (batch_id+1) * len(batch), len(data_loader.dataset),
+                      100. * (batch_id+1) / len(data_loader),
                       rec_loss.item() / len(batch),
                       kl_loss.item() / len(batch)))
 
@@ -84,7 +112,7 @@ def main():
 
     # TODO: add test for VAE?
 
-    # train loop
+    # Train loop.
     for i in range(1, args.n_epochs + 1):
         train(i)
 

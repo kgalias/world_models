@@ -6,16 +6,14 @@ import argparse
 
 import tqdm
 import numpy as np
-from PIL import Image
-from torchvision.transforms import Resize
+
 import gym
-from src.utils import suppress_stdout
+from src.utils import suppress_stdout, obs_to_array
 from src import DATA_DIR
 
 
 # TODO: move to agents file?
 class RandomAgent(object):
-
     def __init__(self, action_space):
         self.action_space = action_space
 
@@ -23,7 +21,6 @@ class RandomAgent(object):
         return self.action_space.sample()
 
 
-# TODO: should rollout take fname? should log_interval be forced to divide n_rollouts? use (kw)args?
 def save_rollouts(env, agent, n_rollouts, dir_name):
     """
     Collects the actions and resulting observations given an agent in an environment.
@@ -31,18 +28,19 @@ def save_rollouts(env, agent, n_rollouts, dir_name):
     """
 
     # TODO: parallelize?
-    for rollout_num in tqdm.tqdm(range(1, n_rollouts + 1)):
+    for rollout_num in tqdm.tqdm(range(1, n_rollouts+1)):
         with suppress_stdout():  # Suppress track generation message for tqdm to work.
             obs = env.reset()
         env.env.viewer.window.dispatch_events()  # CarRacing-v0 is bugged and corrupts obs without this.
         done = False
         reward = 0
         rollout = {'actions': [], 'observations': [], 'rewards': [], 'dones': []}
+
         while not done:
             action = agent.act(obs, reward, done)
             obs, reward, done, _ = env.step(action)
             rollout['actions'].append(np.float32(action))
-            rollout['observations'].append(np.array(Resize((64, 64))(Image.fromarray(obs)), dtype=np.uint8))  # Resize to save space.
+            rollout['observations'].append(obs_to_array(obs))  # Resize and save as uint8 to save space.
             rollout['rewards'].append(np.float32(reward))
             rollout['dones'].append(np.uint8(done))
 
