@@ -1,81 +1,56 @@
 from __future__ import absolute_import, division, print_function
 
-import os
-import datetime
 import argparse
+import os
+from functools import partial
 
+import gym
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-from torch.multiprocessing import Queue
 
-import gym
-from estool.es import CMAES
-
-from src.vae import VAE
-from src.rnn import MDNRNN
-from src.controller import Controller
-from src.utils import suppress_stdout, obs_to_array, obs_array_to_tensor, param_count, updated_model
 from src import DATA_DIR
+from src.controller import ControllerAgent
+from src.es import CMAES
+from src.rnn import MDNRNN
+from src.utils import suppress_stdout, param_count
+from src.vae import VAE
 
 
-class ControllerAgent(object):
-    def __init__(self, controller_params, vae, v_dim, action_dim, m_dim):
-        self.controller = Controller(v_dim, action_dim, m_dim)
-        self.controller = updated_model(self.controller, controller_params)
-        self.vae = vae
-        self.vae.eval()
+def evaluate(env_name, vae, rnn, v_dim, action_dim, m_dim, controller_params, n_rollouts):
+    if env_name == 'CarRacing-v0':
+        env = gym.make(env_name)
+    else:
+        raise NotImplementedError('Environment not supported: ' + env_name)
 
-    def act(self, obs, reward, done, mem):
-        obs = obs_to_array(obs)  # Convert to resized np.array.
-        obs = obs[None, :]  # Add dummy dimension for batch size.
-        obs = obs_array_to_tensor(obs)  # Transform to normalized PyTorch tensor with channels first.
-        with torch.no_grad():
-            enc_obs = self.vae.reparameterize(*self.vae.encode(obs))  # TODO: want sampling here?
-        return self.controller(enc_obs, mem)
+    agent = ControllerAgent(vae, rnn, v_dim, action_dim, m_dim, controller_params)
+    rewards = []
+    # TODO: add support for memory. hidden_state is of shape (1, 1, m_dim)?
+    for rollout_num in range(1, n_rollouts+1):
+        ep_reward = 0
+        with suppress_stdout():  # Suppress track generation message.
+            obs = env.reset()
+        env.env.viewer.window.dispatch_events()  # CarRacing-v0 is bugged and corrupts obs without this.
+        done = False
+        reward = 0
 
+        while not done:
+            action = agent.act(obs, reward, done)
+            obs, reward, done, _ = env.step(action)
+            ep_reward += reward
 
-class Specimen(mp.Process):
-    def __init__(self, env_name, controller_params, vae, v_dim, action_dim, m_dim, n_rollouts=1):
-        super(Specimen, self).__init__()
-        self.env_name = env_name
-        self.controller_params = controller_params
-        self.vae = vae
-        self.v_dim = v_dim
-        self.act_dim = action_dim
-        self.m_dim = m_dim
-        self.n_rollouts = n_rollouts
+        rewards.append(ep_reward)
 
-    # TODO: add support for memory.
-    def run(self):
-        if self.env_name == 'CarRacing-v0':
-            env = gym.make(self.env_name)
-        else:
-            raise NotImplementedError('Environment not supported: ' + self.env_name)
-        agent = ControllerAgent(self.controller_params, self.vae, self.v_dim, self.action_dim, self.m_dim)
-        rewards = []
-        for rollout_num in range(1, self.n_rollouts+1):
-            ep_reward = 0
-            with suppress_stdout():  # Suppress track generation message.
-                obs = env.reset()
-            env.env.viewer.window.dispatch_events()  # CarRacing-v0 is bugged and corrupts obs without this.
-            done = False
-            reward = 0
-
-            while not done:
-                action = agent.act(obs, reward, done)
-                obs, reward, done, _ = env.step(action)
-                ep_reward += reward
-
-            rewards.append(ep_reward)
-
-        return rewards
+    return rewards
 
 
 def main():
+    # TODO: add option to use observation without memory.
     parser = argparse.ArgumentParser(description='Evolutionary training of controller')
-    parser.add_argument('--batchsize', type=int, default=128,
-                        help='Input batch size for training (default=128)')
+    parser.add_argument('--env_name', nargs='?', default='CarRacing-v0',
+                        help='Environment to use (default=CarRacing-v0)')
+    parser.add_argument('--n_rollouts', type=int, default=1,
+                        help='How many rollouts to perform when evaluating (default=1)')
     parser.add_argument('--n_epochs', type=int, default=10,
                         help='Number of epochs to train (default=10)')
     parser.add_argument('--latent_dim', type=int, default=32,
@@ -92,8 +67,6 @@ def main():
                         help='Population size for evolutionary search (default=64)')
     parser.add_argument('--n_workers', type=int, default=16,
                         help='Number of workers for parallel processing (default=16)')
-    # parser.add_argument('--cuda', action='store_true', default=False,
-    #                     help='enables CUDA training')
     parser.add_argument('--vae_fname',
                         help='VAE model file name')
     parser.add_argument('--rnn_fname',
@@ -104,8 +77,6 @@ def main():
                         help='After how many epochs to log')
     args = parser.parse_args()
 
-    # use_cuda = args.cuda and torch.cuda.is_available()
-    # device = torch.device('cuda' if use_cuda else 'cpu')
     device = torch.device('cpu')
 
     # Load the VAE model from file.
@@ -122,31 +93,35 @@ def main():
     mdnrnn.to(device)
 
     # Set up controller model.
-    controller = Controller(v_dim=args.latent_dim, action_dim=args.action_dim, m_dim=args.rnn_hidden_dim).to(device)
+    agent = ControllerAgent(vae=vae,
+                            rnn=mdnrnn,
+                            v_dim=args.latent_dim,
+                            action_dim=args.action_dim,
+                            m_dim=args.rnn_hidden_dim)
 
-    # __init__(self, num_params,  # number of model parameters
-    #          sigma_init=0.10,  # initial standard deviation
-    #          popsize=255,  # population size
-    #          weight_decay=0.01):
-    es = CMAES(num_params=param_count(controller),
-               sigma_init=0.1,
+    # Set up evolutionary strategy optimizer.
+    # weight_decay = 0.01
+    es = CMAES(num_params=param_count(agent.controller),
+               sigma_init=0.1,  # initial standard deviation
                popsize=args.pop_size)
 
-    result_queue = Queue()
+    # Set up multiprocessing.
+    pool = mp.Pool(processes=args.n_workers)
 
     while True:
+        # Create a set of candidate specimens.
+        specimens = es.ask()
 
-        # ask the ES to give us a set of candidate solutions
-        solutions = es.ask()
-
-        # create an array to hold the fitness results.
-        fitness_list = np.zeros(args.pop_size)
-
-        curr_processing = 0
-
-        # evaluate the fitness for each given solution.
-        for i in range(args.pop_size):
-            fitness_list[i] = evaluate(solutions[i])
+        # Evaluate the fitness of candidate specimens.
+        func = partial(evaluate,
+                       env_name=args.env_name,
+                       vae=vae,
+                       rnn=mdnrnn,
+                       v_dim=args.latent_dim,
+                       action_dim=args.action_dim,
+                       m_dim=args.rnn_hidden_dim,
+                       n_rollouts=args.n_rollouts)
+        fitness_list = np.array(pool.map(func, specimens))
 
         # give list of fitness results back to ES
         es.tell(fitness_list)

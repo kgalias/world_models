@@ -100,13 +100,7 @@ def main():
             z_batch = z_batch[:, :-1]
             act_batch = act_batch[:, :-1]
 
-            pi, mu, sigma, hidden = mdnrnn(act_batch, z_batch)
-            # output = mdnrnn.mdn.sample(pi, mu, sigma)  # Need output for anything in training?
-
-            # Reshape for calculating the loss.
-            # pi = pi.view(-1, args.seq_len-1, args.n_gaussians)
-            # mu = mu.view(-1, args.seq_len-1, args.n_gaussians, args.latent_dim)
-            # sigma = sigma.view(-1, args.seq_len-1, args.n_gaussians, args.latent_dim)
+            pi, mu, sigma, _ = mdnrnn(act_batch, z_batch)
 
             loss = nll_gmm_loss(targets, pi, mu, sigma)
             loss.backward()
@@ -145,14 +139,14 @@ def main():
                 z_batch = z_batch[:, :-1]
                 act_batch = act_batch[:, :-1]
 
-                pi, mu, sigma, hidden = mdnrnn(act_batch, z_batch)
+                pi, mu, sigma, _ = mdnrnn(act_batch, z_batch)
 
                 test_loss += nll_gmm_loss(targets, pi, mu, sigma).item()
         print('Epoch {} average test loss was {:.4f}.'.format(
               epoch, test_loss / len(test_loader.dataset)))
 
     # Train/test loop.
-    for i in range(1, args.n_epochs + 1):
+    for i in range(1, args.n_epochs+1):
         train(i)
         test(i)
 
@@ -161,7 +155,7 @@ def main():
         os.makedirs(os.path.join(DATA_DIR, 'rnn'))
 
     torch.save(mdnrnn.state_dict(), os.path.join(DATA_DIR, 'rnn',
-                                                 datetime.datetime.today().isoformat() + str(args.n_epochs)))
+                                                 datetime.datetime.today().isoformat() + '_' + str(args.n_epochs)))
     # To load the model, do:
     # mdnrnn = MDNRNN()
     # mdnrnn.load_state_dict(torch.load(PATH))

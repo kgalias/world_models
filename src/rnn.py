@@ -47,7 +47,6 @@ class MDNRNN(nn.Module):
     def forward(self, action, state, hidden_state=None):
         seq_len = action.size(1) + 1
         rnn_input = torch.cat((action, state), dim=-1)  # Concatenate action and state.
-        # TODO: verify whether to use both parts of hidden_state.
         output, hidden_state = self.rnn(rnn_input, hidden_state)
         output = output.contiguous()
         output = output.view(-1, self.hidden_dim)
@@ -63,7 +62,7 @@ def nll_gmm_loss(x, pi, mu, sigma, size_average=True):
     x = x.unsqueeze(2)  # For broadcasting on the pi dimension.
     output_dim = mu.size(-1)
     log_pi = pi.log()
-    log_pdf = -1 / 2 * (sigma.prod(dim=-1).log() + (x - mu).pow(2).mul(sigma.reciprocal()).sum(dim=-1))
+    log_pdf = -1 / 2 * (sigma.log().sum(dim=-1) + (x - mu).pow(2).mul(sigma.reciprocal()).sum(dim=-1))
     log_pdf += -output_dim / 2 * torch.ones_like(log_pdf) * math.log(2 * math.pi)
     if size_average:
         ll = logsumexp(log_pi + log_pdf, dim=-1).mean()

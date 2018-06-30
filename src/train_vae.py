@@ -17,7 +17,6 @@ def main():
     parser = argparse.ArgumentParser(description='VAE')
     parser.add_argument('--batch_size', type=int, default=100,
                         help='Batch size for training (default=100)')
-    # TODO: is training for a 100 epochs with sampling an observation from each rollout good enough?
     parser.add_argument('--n_epochs', type=int, default=100,
                         help='Number of epochs to train (default=100)')
     parser.add_argument('--latent_dim', type=int, default=32,
@@ -121,7 +120,7 @@ def main():
         os.makedirs(os.path.join(DATA_DIR, 'vae'))
 
     torch.save(vae.state_dict(), os.path.join(DATA_DIR, 'vae',
-                                              datetime.datetime.today().isoformat() + str(args.n_epochs)))
+                                              datetime.datetime.today().isoformat() + '_' + str(args.n_epochs)))
     # To load the model, do:
     # vae = VAE()
     # vae.load_state_dict(torch.load(PATH))

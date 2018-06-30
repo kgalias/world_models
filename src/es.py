@@ -1,3 +1,4 @@
+"""Different evolutionary strategies. Copied from https://github.com/hardmaru/estool"""
 import numpy as np
 
 def compute_ranks(x):

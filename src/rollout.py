@@ -8,17 +8,9 @@ import tqdm
 import numpy as np
 
 import gym
+from src.controller import RandomAgent
 from src.utils import suppress_stdout, obs_to_array
 from src import DATA_DIR
-
-
-# TODO: move to agents file?
-class RandomAgent(object):
-    def __init__(self, action_space):
-        self.action_space = action_space
-
-    def act(self, obs, reward, done):
-        return self.action_space.sample()
 
 
 def save_rollouts(env, agent, n_rollouts, dir_name):
@@ -50,7 +42,7 @@ def save_rollouts(env, agent, n_rollouts, dir_name):
 
 def main():
     parser = argparse.ArgumentParser(description='Rollout of an agent in an environment')
-    parser.add_argument('--env', nargs='?', default='CarRacing-v0',
+    parser.add_argument('--env_name', nargs='?', default='CarRacing-v0',
                         help='Environment to use (default=CarRacing-v0)')
     parser.add_argument('--agent', nargs='?', default='RandomAgent',
                         help='Agent to run (default=RandomAgent)')
@@ -58,10 +50,10 @@ def main():
                         help='How many rollouts to perform (default=10000)')
     args = parser.parse_args()
 
-    if args.env == 'CarRacing-v0':
-        env = gym.make(args.env)
+    if args.env_name == 'CarRacing-v0':
+        env = gym.make(args.env_name)
     else:
-        raise NotImplementedError('Environment not supported: ' + args.env)
+        raise NotImplementedError('Environment not supported: ' + args.env_name)
 
     if args.agent == 'RandomAgent':
         agent = RandomAgent(env.action_space)
@@ -69,7 +61,7 @@ def main():
         raise NotImplementedError('Agent not supported: ' + args.agent)
 
     start_time = datetime.datetime.today().isoformat()
-    dir_name = args.env + '_' + args.agent + '_' + start_time + '_' + args.n_rollouts
+    dir_name = args.env_name + '_' + args.agent + '_' + start_time + '_' + args.n_rollouts
     os.makedirs(os.path.join(DATA_DIR, 'rollouts', dir_name))
 
     save_rollouts(env, agent, args.n_rollouts, dir_name)
