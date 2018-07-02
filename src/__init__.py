@@ -4,4 +4,4 @@ import os
 
 DATA_DIR = os.environ.get('DATA_DIR', None)
 
-# RESULTS_DIR = os.path.join(DATA_DIR, "..", "results")
+RESULTS_DIR = os.path.join(DATA_DIR, "..", "results")

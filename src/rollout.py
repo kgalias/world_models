@@ -61,7 +61,7 @@ def main():
         raise NotImplementedError('Agent not supported: ' + args.agent)
 
     start_time = datetime.datetime.today().isoformat()
-    dir_name = args.env_name + '_' + args.agent + '_' + start_time + '_' + args.n_rollouts
+    dir_name = args.env_name + '_' + args.agent + '_' + start_time + '_' + str(args.n_rollouts)
     os.makedirs(os.path.join(DATA_DIR, 'rollouts', dir_name))
 
     save_rollouts(env, agent, args.n_rollouts, dir_name)

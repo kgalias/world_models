@@ -110,7 +110,7 @@ def main():
             optimizer.step()
 
             if batch_id % args.log_interval == 0:
-                print("Epoch: {0:}\t| Examples: {1:}/{2:} ({3:.0f}%)\t| Loss: {4:.2f}\t".format(
+                print('Epoch: {0:}\t| Examples: {1:}/{2:} ({3:.0f}%)\t| Loss: {4:.2f}\t'.format(
                       epoch, (batch_id+1) * len(obs_batch), len(train_loader.dataset),
                       100. * (batch_id+1) / len(train_loader),
                       loss.item() / len(obs_batch)))
@@ -142,8 +142,8 @@ def main():
                 pi, mu, sigma, _ = mdnrnn(act_batch, z_batch)
 
                 test_loss += nll_gmm_loss(targets, pi, mu, sigma).item()
-        print('Epoch {} average test loss was {:.4f}.'.format(
-              epoch, test_loss / len(test_loader.dataset)))
+            print('Epoch {} average test loss was {:.4f}.'.format(
+                  epoch, test_loss / len(test_loader.dataset)))
 
     # Train/test loop.
     for i in range(1, args.n_epochs+1):

@@ -57,6 +57,9 @@ class MDNRNN(nn.Module):
         sigma = sigma.view(-1, seq_len-1, self.n_gaussians, self.latent_dim)
         return pi, mu, sigma, hidden_state
 
+    def init_hidden(self, batch_size):  # Assumes one layer and one direction.
+        return torch.randn(batch_size, 1, self.hidden_dim), torch.randn(batch_size, 1, self.hidden_dim)
+
 
 def nll_gmm_loss(x, pi, mu, sigma, size_average=True):
     x = x.unsqueeze(2)  # For broadcasting on the pi dimension.
