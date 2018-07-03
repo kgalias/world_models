@@ -20,7 +20,8 @@ from src.vae import VAE
 
 def evaluate(controller_params, env_name, vae, v_dim, action_dim, rnn, m_dim, n_rollouts):
     if env_name == 'CarRacing-v0':
-        with suppress_stdout():  # Suppress env creation message. TODO: doesn't work; fix.
+        # TODO: doesn't work; fix. https://stackoverflow.com/questions/1501651/log-output-of-multiprocessing-process
+        with suppress_stdout():  # Suppress env creation message.
             env = gym.make(env_name)
     else:
         raise NotImplementedError('Environment not supported: ' + env_name)
@@ -54,8 +55,8 @@ def main():
                         help='Environment to use (default=CarRacing-v0)')
     parser.add_argument('--n_rollouts', type=int, default=1,
                         help='How many rollouts to perform when evaluating (default=1)')
-    parser.add_argument('--n_generations', type=int, default=10,
-                        help='Number of generations to train (default=10)')
+    parser.add_argument('--n_generations', type=int, default=300,
+                        help='Number of generations to train (default=300)')
     parser.add_argument('--latent_dim', type=int, default=32,
                         help='Dimension of latent space (default=32)')
     parser.add_argument('--seq_len', type=int, default=10,
@@ -63,7 +64,7 @@ def main():
     parser.add_argument('--action_dim', type=int, default=3,
                         help='Dimension of action space (default=3)')
     parser.add_argument('--rnn_hidden_dim', nargs='?', type=int, default=256,
-                        help='Dimension of RNN hidden state (default=256)')  # 'Set to 0 to not use memory')
+                        help='Dimension of RNN hidden state (default=256)')
     parser.add_argument('--n_gaussians', type=int, default=5,
                         help='Number of gaussians for the Mixture Density Network (default=5)')
     parser.add_argument('--pop_size', type=int, default=64,
@@ -74,8 +75,8 @@ def main():
                         help='VAE model file name')
     parser.add_argument('--rnn_fname', nargs='?',
                         help='RNN model file name')
-    parser.add_argument('--eval_interval', nargs='?', default=25, type=int,
-                        help='After how many generation to evaluate best params (default=25)')
+    parser.add_argument('--eval_interval', nargs='?', default=15, type=int,
+                        help='After how many generation to evaluate best params (default=15)')
     args = parser.parse_args()
 
     device = torch.device('cpu')
@@ -147,15 +148,19 @@ def main():
 
         history = {'best_params': es_solution[0],  # best historical solution
                    'best_fitness': es_solution[1],  # best reward
-                   'curr_best_fitness': es_solution[2],  # best of the current batch
+                   'curr_best_fitness': es_solution[2],  # best of current generation
                    'mean_fitness': fitness_list.mean(),  # mean fitness of current generation
                    'std_fitness': fitness_list.std()  # std of fitness of current generation
                    }
-        np.savez(os.path.join(RESULTS_DIR, 'controller', dir_name, '_' + str(i)),
+        np.savez(os.path.join(RESULTS_DIR, 'controller', dir_name, str(i)),
                  **history)
 
-        print('Best fitness in generation {} was {}. Processing took {}m{}s.'.format(
-              i, es_solution[2], *divmod(int(duration.total_seconds()), 60)))
+        print('Gen: {0:}\t| Best fit of gen: {1:.2f}\t| Best fit historical: {2:.2f}\t|'
+              ' Mean fit: {3:.2f}\t| Std of fit: {4:.2f}\t| Time: {5:}m {6:}s'
+              .format(i, es_solution[2], es_solution[1], fitness_list.mean(), fitness_list.std(),
+                      *divmod(int(duration.total_seconds()), 60)))
+        # print('Best fitness in generation {0:} was {1:.2f}. Processing took {}m{}s.'.format(
+        #       i, es_solution[2], *divmod(int(duration.total_seconds()), 60)))
 
         if i % args.eval_interval == 0:
             start_time = datetime.datetime.now()
@@ -163,10 +168,11 @@ def main():
                                                   np.broadcast_to(es_solution[0],
                                                                   (args.n_workers,) + es_solution[0].shape)))
             duration = datetime.datetime.now() - start_time
-            print('Average (over {} rollouts) fitness of best parameters after generation {}: {}. Took {}m{}s.'.format(
+            print('{0:}-worker average fit of best params after gen {1:}: {2:.2f}. Time: {3:}m {4:}s.'.format(
                   args.n_workers, i, eval_fitness_list.mean(), *divmod(int(duration.total_seconds()), 60)))
-            np.savez(os.path.join(RESULTS_DIR, 'controller', dir_name, '_' + str(i) + '_eval'),
-                     eval_fitness_list)
 
+            # print('Average (over {} rollouts) fitness of best parameters after generation {}: {}. Took {}m{}s.')
+            np.savez(os.path.join(RESULTS_DIR, 'controller', dir_name, str(i) + '_eval'),
+                     eval_fitness_list)
 if __name__ == '__main__':
     main()
