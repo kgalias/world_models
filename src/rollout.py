@@ -50,6 +50,7 @@ def main():
                         help='How many rollouts to perform (default=10000)')
     args = parser.parse_args()
 
+    gym.logger.setLevel(30)  # TODO: can remove suppress_stdout() now?
     if args.env_name == 'CarRacing-v0':
         env = gym.make(args.env_name)
     else:

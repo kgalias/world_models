@@ -20,9 +20,8 @@ from src.vae import VAE
 
 def evaluate(controller_params, env_name, vae, v_dim, action_dim, rnn, m_dim, n_rollouts):
     if env_name == 'CarRacing-v0':
-        # TODO: doesn't work; fix. https://stackoverflow.com/questions/1501651/log-output-of-multiprocessing-process
-        with suppress_stdout():  # Suppress env creation message.
-            env = gym.make(env_name)
+        gym.logger.setLevel(30)  # For suppressing the env creation message. TODO: can remove suppress_stdout() now?
+        env = gym.make(env_name)
     else:
         raise NotImplementedError('Environment not supported: ' + env_name)
 
@@ -146,11 +145,11 @@ def main():
         es_solution = es.result()
         duration = datetime.datetime.now() - start_time
 
-        history = {'best_params': es_solution[0],  # best historical solution
-                   'best_fitness': es_solution[1],  # best reward
-                   'curr_best_fitness': es_solution[2],  # best of current generation
-                   'mean_fitness': fitness_list.mean(),  # mean fitness of current generation
-                   'std_fitness': fitness_list.std()  # std of fitness of current generation
+        history = {'best_params': es_solution[0],  # Best historical parameters.
+                   'best_fitness': es_solution[1],  # Best historical reward.
+                   'curr_best_fitness': es_solution[2],  # Best fitness of current generation.
+                   'mean_fitness': fitness_list.mean(),  # Mean fitness of current generation.
+                   'std_fitness': fitness_list.std()  # Std of fitness of current generation.
                    }
         np.savez(os.path.join(RESULTS_DIR, 'controller', dir_name, str(i)),
                  **history)
@@ -159,8 +158,6 @@ def main():
               ' Mean fit: {3:.2f}\t| Std of fit: {4:.2f}\t| Time: {5:}m {6:}s'
               .format(i, es_solution[2], es_solution[1], fitness_list.mean(), fitness_list.std(),
                       *divmod(int(duration.total_seconds()), 60)))
-        # print('Best fitness in generation {0:} was {1:.2f}. Processing took {}m{}s.'.format(
-        #       i, es_solution[2], *divmod(int(duration.total_seconds()), 60)))
 
         if i % args.eval_interval == 0:
             start_time = datetime.datetime.now()
@@ -171,7 +168,6 @@ def main():
             print('{0:}-worker average fit of best params after gen {1:}: {2:.2f}. Time: {3:}m {4:}s.'.format(
                   args.n_workers, i, eval_fitness_list.mean(), *divmod(int(duration.total_seconds()), 60)))
 
-            # print('Average (over {} rollouts) fitness of best parameters after generation {}: {}. Took {}m{}s.')
             np.savez(os.path.join(RESULTS_DIR, 'controller', dir_name, str(i) + '_eval'),
                      eval_fitness_list)
 if __name__ == '__main__':
